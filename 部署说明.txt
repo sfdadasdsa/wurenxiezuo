@@ -1,0 +1,6 @@
+﻿# 部署到GitHub Pages (免费公网)
+# 1. 打开 https://github.com 注册账号
+# 2. 点「New repository」创建新仓库
+# 3. 上传 D:\workspace\五人协作\ 下所有文件
+# 4. 仓库 → Settings → Pages → 选 main → /root → Save
+# 5. 等2分钟，访问 https://你的用户名.github.io/仓库名/
