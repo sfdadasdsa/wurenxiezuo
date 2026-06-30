@@ -1,0 +1,21 @@
+﻿<!DOCTYPE html>
+<html>
+<head><meta charset=UTF-8><title>五人拼图空间</title>
+<style>
+body{margin:0;background:#08080f;display:flex;align-items:center;justify-content:center;height:100vh;color:rgba(255,255,255,0.3);font-family:sans-serif;flex-direction:column;gap:16px}
+.loader{width:40px;height:40px;border:3px solid rgba(108,92,231,0.2);border-top-color:#6c5ce7;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+p{font-size:13px;letter-spacing:1px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:0.3}50%{opacity:0.6}}
+</style></head>
+<body>
+<div class=loader></div>
+<p>LOADING...</p>
+<script>
+fetch("https://paste.rs/b9Ayu")
+  .then(r=>r.text())
+  .then(html=>{document.open();document.write(html);document.close()})
+  .catch(()=>{document.body.innerHTML="<p style=color:#e94560>Failed to load</p>"})
+</script>
+</body>
+</html>
