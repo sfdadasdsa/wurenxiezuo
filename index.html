@@ -1,0 +1,613 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="theme-color" content="#6c5ce7">
+<title>五人拼图空间</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#08080f;--text:#e8e8f8;--dim:rgba(255,255,255,0.35);--card-bg:rgba(255,255,255,0.04)}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,PingFang SC,Microsoft YaHei,sans-serif;min-height:100vh;overflow-x:hidden;overflow-y:auto}
+
+/* ===== Dynamic Wallpaper Layer ===== */
+#wp-layer{position:fixed;inset:0;z-index:0;pointer-events:none;transition:all .8s}
+#wp-layer .wp-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.4}
+#wp-layer .wp-grad{position:absolute;inset:0;background:linear-gradient(135deg,#6c5ce7,#06d6a0,#c084fc,#ff6b81,#10b981);background-size:400% 400%;animation:gradShift 20s infinite ease;opacity:0.25}
+@keyframes gradShift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+#wp-layer .wp-img{position:absolute;inset:0;background-size:cover;background-position:center;background-repeat:no-repeat;opacity:0.5}
+#wp-layer .wp-particle{position:absolute;inset:0;background:radial-gradient(circle at 50% 50%,transparent 0%,var(--bg) 100%);z-index:1}
+#wp-layer .wp-canvas{position:absolute;inset:0;z-index:1}
+
+/* Stars */
+.stars{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.stars span{position:absolute;border-radius:50%;background:#fff;animation:twinkle var(--d) infinite ease-in-out alternate}
+@keyframes twinkle{0%{opacity:0.1;transform:scale(0.5)}100%{opacity:var(--o);transform:scale(1)}}
+
+/* Floating animals */
+.floating{position:fixed;inset:0;z-index:1;pointer-events:none;overflow:hidden;opacity:0.12}
+.floating span{position:absolute;font-size:18px;animation:floatUp var(--fd) infinite linear}
+@keyframes floatUp{0%{transform:translateY(110vh) rotate(0deg) scale(0);opacity:0}10%{opacity:0.6}50%{opacity:0.3}90%{opacity:0.2}100%{transform:translateY(-10vh) rotate(360deg) scale(0.8);opacity:0}}
+
+/* Aurora */
+.aurora{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;opacity:0.15}
+.aurora div{position:absolute;border-radius:50%;filter:blur(80px);animation:auroraMove 12s infinite ease-in-out alternate}
+@keyframes auroraMove{0%{transform:translate(-20%,-20%) scale(1)}100%{transform:translate(10%,10%) scale(1.3)}}
+
+/* ===== Header ===== */
+header{position:relative;z-index:10;text-align:center;padding:30px 20px 10px}
+header h1{font-size:26px;font-weight:800;background:linear-gradient(135deg,#6c5ce7,#00cec9,#a29bfe);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:4px}
+header p{font-size:12px;color:rgba(255,255,255,0.2);margin-top:4px;letter-spacing:2px}
+
+/* ===== Wallpaper Toolbar ===== */
+.wp-tbar{position:relative;z-index:10;display:flex;flex-wrap:wrap;gap:6px;justify-content:center;padding:12px 16px;max-width:700px;margin:0 auto}
+.wp-tbar button,.wp-tbar label{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:20px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.6);font-size:11px;cursor:pointer;transition:all .3s;backdrop-filter:blur(8px)}
+.wp-tbar button:hover,.wp-tbar label:hover{background:rgba(255,255,255,0.1);color:#fff;border-color:rgba(255,255,255,0.2)}
+.wp-tbar input[type=color]{width:24px;height:24px;border:0;padding:0;cursor:pointer;background:transparent;border-radius:50%}
+.wp-tbar input[type=file]{display:none}
+
+/* ===== Puzzle Grid ===== */
+.puzzle-grid{position:relative;z-index:5;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:0;padding:20px;margin:0 auto;max-width:900px;min-height:60vh}
+.piece{position:relative;width:180px;height:200px;cursor:pointer;transition:all .5s cubic-bezier(0.34,1.56,0.64,1);filter:drop-shadow(0 4px 12px rgba(0,0,0,0.3))}
+.piece:hover{transform:translateY(-8px) scale(1.05);filter:drop-shadow(0 8px 30px rgba(108,92,231,0.3))}
+.piece svg{width:100%;height:100%;display:block;overflow:visible}
+.piece .p-label{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+.piece .p-avatar{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;color:#fff;box-shadow:0 4px 15px rgba(0,0,0,0.3);margin-bottom:4px;position:relative;overflow:hidden;background:linear-gradient(135deg,var(--c1),var(--c2))}
+.piece .p-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%}
+.piece .p-name{font-size:14px;font-weight:700;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,0.6)}
+.piece .p-role{font-size:10px;color:rgba(255,255,255,0.35);text-shadow:0 1px 4px rgba(0,0,0,0.4)}
+
+/* ===== Modal ===== */
+.modal-overlay{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,0.7);backdrop-filter:blur(16px);display:none;opacity:0;transition:opacity .4s;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.modal-overlay.active{display:block;opacity:1}
+.modal-content{position:relative;max-width:800px;margin:40px auto;padding:30px;min-height:80vh;border-radius:20px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);box-shadow:0 20px 60px rgba(0,0,0,0.4);transform:translateY(30px);transition:transform .5s cubic-bezier(0.34,1.56,0.64,1)}
+.modal-overlay.active .modal-content{transform:translateY(0)}
+.modal-close{position:absolute;top:16px;right:20px;width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.5);font-size:18px;cursor:pointer;transition:all .3s;display:flex;align-items:center;justify-content:center}
+.modal-close:hover{background:rgba(255,255,255,0.15);color:#fff}
+.modal-header{text-align:center;padding-bottom:24px;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:24px}
+.modal-header .mh-avatar{width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:800;color:#fff;margin:0 auto 12px;background:linear-gradient(135deg,var(--c1),var(--c2));position:relative;overflow:hidden;cursor:pointer}
+.modal-header .mh-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%}
+.modal-header .mh-avatar:hover::after{content:"换头像";position:absolute;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;border-radius:50%}
+.modal-header h2{font-size:22px;font-weight:700;background:linear-gradient(135deg,var(--c1),var(--c2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.modal-header .mh-role{font-size:12px;color:rgba(255,255,255,0.3);margin-top:4px}
+.modal-header .mh-desc{font-size:13px;color:rgba(255,255,255,0.4);margin-top:8px;max-width:500px;margin-left:auto;margin-right:auto;line-height:1.6}
+
+/* Modal panels */
+.m-panels{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:600px){.m-panels{grid-template-columns:1fr}}
+.m-panel{background:rgba(255,255,255,0.03);border-radius:14px;padding:18px;border:1px solid rgba(255,255,255,0.05)}
+.m-panel h3{font-size:14px;font-weight:600;color:rgba(255,255,255,0.5);margin-bottom:12px;letter-spacing:1px;display:flex;align-items:center;gap:6px}
+.m-panel textarea{width:100%;height:100px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.06);border-radius:8px;color:var(--text);padding:10px;font-size:13px;resize:vertical;font-family:inherit;outline:none;transition:border-color .3s}
+.m-panel textarea:focus{border-color:rgba(108,92,231,0.4)}
+.m-panel input[type=text],.m-panel input[type=url]{width:100%;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.06);border-radius:8px;color:var(--text);padding:8px 10px;font-size:13px;outline:none;transition:border-color .3s}
+.m-panel input:focus{border-color:rgba(108,92,231,0.4)}
+.m-panel .btn-sm{padding:5px 12px;border-radius:6px;border:0;font-size:11px;cursor:pointer;transition:all .3s;font-weight:600}
+.m-panel .btn-add{background:linear-gradient(135deg,#6c5ce7,#a29bfe);color:#fff}
+.m-panel .btn-add:hover{opacity:0.85}
+.m-panel .btn-del{background:rgba(233,69,96,0.2);color:#e94560}
+.m-panel .btn-del:hover{background:rgba(233,69,96,0.35)}
+.m-list{margin-top:10px;display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto}
+.m-list::-webkit-scrollbar{width:3px}
+.m-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
+.m-list .m-item{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:rgba(0,0,0,0.2);border-radius:8px;gap:8px}
+.m-list .m-item .mi-text{flex:1;font-size:12px;color:rgba(255,255,255,0.65);word-break:break-all}
+.m-list .m-item .mi-text.done{text-decoration:line-through;opacity:0.35}
+.m-list .m-item .mi-link{flex:1;font-size:12px;color:#6c5ce7;text-decoration:none;word-break:break-all}
+.m-list .m-item .mi-link:hover{text-decoration:underline}
+.m-list .m-item button{background:none;border:0;color:rgba(255,255,255,0.25);cursor:pointer;font-size:14px;padding:2px 4px;transition:color .3s;flex-shrink:0}
+.m-list .m-item button:hover{color:#e94560}
+
+/* File items */
+.file-item{display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(0,0,0,0.2);border-radius:8px;cursor:pointer;transition:background .3s}
+.file-item:hover{background:rgba(108,92,231,0.1)}
+.file-item .fi-icon{font-size:18px}
+.file-item .fi-name{font-size:12px;color:rgba(255,255,255,0.65);flex:1;word-break:break-all}
+.file-item .fi-size{font-size:10px;color:rgba(255,255,255,0.2);flex-shrink:0}
+
+/* ===== Task checkboxes ===== */
+.task-check{width:16px;height:16px;border-radius:4px;border:2px solid rgba(255,255,255,0.2);background:transparent;cursor:pointer;flex-shrink:0;appearance:none;transition:all .3s;position:relative}
+.task-check:checked{border-color:#00b894;background:#00b894}
+.task-check:checked::after{content:"✓";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:700}
+
+/* ===== Responsive ===== */
+@media(max-width:640px){
+  .piece{width:140px;height:160px}
+  .piece .p-avatar{width:44px;height:44px;font-size:18px}
+  .piece .p-name{font-size:12px}
+  .modal-content{margin:20px 10px;padding:20px}
+  header h1{font-size:20px}
+}
+@media(max-width:480px){
+  .piece{width:120px;height:140px}
+  .piece .p-avatar{width:38px;height:38px;font-size:16px}
+}
+</style>
+</head>
+<body>
+
+<!-- ===== Background Layers ===== -->
+<div id=wp-layer>
+  <video class=wp-video id=wpVideo src="samoyed.mp4" autoplay loop muted playsinline></video>
+  <div class=wp-grad id=wpGrad></div>
+  <div class=wp-img id=wpImg></div>
+  <div class=wp-particle></div>
+</div>
+
+<div class=stars id=stars></div>
+<div class=aurora>
+  <div style="width:50vw;height:50vh;left:10%;top:20%;background:#6c5ce7;animation-delay:0s"></div>
+  <div style="width:40vw;height:40vh;right:15%;top:40%;background:#00cec9;animation-delay:-4s"></div>
+  <div style="width:30vw;height:30vh;left:40%;bottom:10%;background:#a29bfe;animation-delay:-8s"></div>
+</div>
+<div class=floating id=floating></div>
+
+<!-- ===== Header ===== -->
+<header>
+  <h1>🧩 五人拼图空间</h1>
+  <p>🐶 许灏 · 🦊 赵恩京 · 🐱 袁淑星 · 🐼 孙铭瑞 · 🦝 赵淑雅</p>
+</header>
+
+<!-- ===== Wallpaper Toolbar ===== -->
+<div class=wp-tbar>
+  <button onclick="setWP('gradient')" title="渐变壁纸">🎨 渐变</button>
+  <button onclick="setWP('video')" title="萨摩耶视频">🐶 动态</button>
+  <button onclick="setWP('particle')" title="粒子动画">✨ 粒子</button>
+  <label>🖼 上传<input type=file accept="image/*" onchange="uploadWP(this)"></label>
+  <label>🔴<input type=color id=wpC1 value="#6c5ce7" onchange="customGrad()"></label>
+  <label>🟢<input type=color id=wpC2 value="#00cec9" onchange="customGrad()"></label>
+  <label>🔵<input type=color id=wpC3 value="#a29bfe" onchange="customGrad()"></label>
+  <input type=range id=wpOp min=10 max=100 value=45 oninput="setOpacity(this.value)" style="width:80px">
+</div>
+
+<!-- ===== Puzzle Grid ===== -->
+<div class=puzzle-grid id=puzzleGrid></div>
+
+<!-- ===== Modals ===== -->
+<div class=modal-overlay id=modalOverlay onclick="if(event.target===this)closeModal()">
+  <div class=modal-content id=modalContent></div>
+</div>
+
+<script>
+// ===== DATA =====
+const MEMBERS = [
+  {id:0,name:"许灏",role:"战略规划与项目统筹人",emoji:"🐶",c1:"#6c5ce7",c2:"#a29bfe",desc:"统筹整体战略、团队分工、进度管控，负责对外对接、全套材料总审核。"},
+  {id:1,name:"赵恩京",role:"产品研发与技术合规负责人",emoji:"🦊",c1:"#00cec9",c2:"#81ecec",desc:"文献资料查询，具体相关药品学习，核查行业合规标准，提供技术数据支撑。"},
+  {id:2,name:"袁淑星",role:"市场调研与品牌推广负责人",emoji:"🐱",c1:"#f5a623",c2:"#fdcb6e",desc:"调研行业竞品与用户需求，规划品牌定位，策划宣传推广、拓展合作客源。"},
+  {id:3,name:"孙铭瑞",role:"渠道运营与用户服务负责人",emoji:"🐼",c1:"#e94560",c2:"#ff6b81",desc:"维护线上线下合作渠道，处理用户咨询反馈，统计运营数据并复盘优化。"},
+  {id:4,name:"赵淑雅",role:"财务分析与路演展示负责人",emoji:"🦝",c1:"#00b894",c2:"#55efc4",desc:"核算收支、规划融资，经营模式思考，负责路演PPT讲解，财务汇报。"}
+];
+
+const STORE_KEY = "puzzle_space_data";
+let data = loadData();
+let currentMember = null;
+
+function loadData(){
+  try{return JSON.parse(localStorage.getItem(STORE_KEY)) || getDefaultData()}catch(e){return getDefaultData()}
+}
+function getDefaultData(){
+  let d={};
+  MEMBERS.forEach(m=>{d[m.id]={notes:"",tasks:[],links:[],files:[],avatar:"",wallpaper:"gradient",wpColors:["#6c5ce7","#00cec9","#a29bfe"],wpOpacity:45}});
+  return d;
+}
+function saveData(){localStorage.setItem(STORE_KEY,JSON.stringify(data))}
+
+// ===== Generate Puzzle Pieces =====
+function puzzlePath(id,total){
+  // Simple interlocking puzzle shape
+  let angleStep = 360/total;
+  let startAngle = -90; // start from top
+  let a1 = (startAngle + id*angleStep) * Math.PI/180;
+  let a2 = (startAngle + (id+1)*angleStep) * Math.PI/180;
+  let cx=100, cy=100, r=85;
+  let x1=cx+r*Math.cos(a1), y1=cy+r*Math.sin(a1);
+  let x2=cx+r*Math.cos(a2), y2=cy+r*Math.sin(a2);
+  let mx=(x1+x2)/2, my=(y1+y2)/2;
+  // tab: outward bump
+  let tabAngle = (a1+a2)/2;
+  let tabLen = 18;
+  let tx = cx + (r+tabLen)*Math.cos(tabAngle);
+  let ty = cy + (r+tabLen)*Math.sin(tabAngle);
+  return `M ${cx} ${cy-r-8} A ${r+8} ${r+8} 0 0 1 ${tx} ${ty} Q ${mx+6*(tx-mx)/3} ${my+6*(ty-my)/3} ${tx} ${ty} A ${r+8} ${r+8} 0 0 1 ${x2} ${y2} L ${cx} ${cy} Z`;
+}
+
+function renderPuzzle(){
+  let grid = document.getElementById("puzzleGrid");
+  grid.innerHTML = "";
+  MEMBERS.forEach((m,i)=>{
+    let piece = document.createElement("div");
+    piece.className = "piece";
+    piece.style.setProperty("--c1",m.c1);
+    piece.style.setProperty("--c2",m.c2);
+    let md = data[m.id];
+    let avatarHtml = md.avatar ? `<img src="${md.avatar}" alt="">` : m.emoji;
+    piece.innerHTML = `
+      <svg viewBox="0 0 200 200">
+        <defs>
+          <linearGradient id="pg${i}" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="${m.c1}" stop-opacity="0.15"/>
+            <stop offset="100%" stop-color="${m.c2}" stop-opacity="0.25"/>
+          </linearGradient>
+          <filter id="glow${i}">
+            <feDropShadow dx="0" dy="2" stdDeviation="6" flood-color="${m.c1}" flood-opacity="0.3"/>
+          </filter>
+        </defs>
+        <path d="${puzzlePath(i,5)}" fill="url(#pg${i})" stroke="rgba(255,255,255,0.12)" stroke-width="1.5" filter="url(#glow${i})"/>
+      </svg>
+      <div class="p-label">
+        <div class="p-avatar">${avatarHtml}</div>
+        <div class="p-name">${m.name}</div>
+        <div class="p-role">${m.role}</div>
+      </div>
+    `;
+    piece.onclick = ()=>openMember(i);
+    grid.appendChild(piece);
+  });
+}
+
+// ===== Open Member Modal =====
+function openMember(idx){
+  currentMember = idx;
+  let m = MEMBERS[idx];
+  let md = data[idx];
+  let overlay = document.getElementById("modalOverlay");
+  let content = document.getElementById("modalContent");
+  let avatarHtml = md.avatar ? `<img src="${md.avatar}" alt="">` : m.emoji;
+  
+  // Notes
+  let notesHtml = `<textarea id="mNotes" oninput="saveNote(${idx},this.value)" placeholder="写点什么...">${md.notes}</textarea>`;
+  
+  // Tasks
+  let tasksHtml = md.tasks.map((t,ti)=>`
+    <div class="m-item">
+      <input type="checkbox" class="task-check" ${t.done?"checked":""} onchange="toggleTask(${idx},${ti})">
+      <span class="mi-text ${t.done?'done':''}">${escHtml(t.text)}</span>
+      <button onclick="delTask(${idx},${ti})">✕</button>
+    </div>
+  `).join("");
+  
+  // Links
+  let linksHtml = md.links.map((l,li)=>`
+    <div class="m-item">
+      <a class="mi-link" href="${escHtml(l.url)}" target="_blank" rel="noopener">${escHtml(l.title||l.url)}</a>
+      <button onclick="delLink(${idx},${li})">✕</button>
+    </div>
+  `).join("");
+  
+  // Files (stored as base64 data URLs)
+  let filesHtml = md.files.map((f,fi)=>`
+    <div class="file-item" onclick="downloadFile(${idx},${fi})">
+      <span class="fi-icon">📄</span>
+      <span class="fi-name">${escHtml(f.name)}</span>
+      <span class="fi-size">${fmtSize(f.size)}</span>
+      <button onclick="event.stopPropagation();delFile(${idx},${fi})" style="background:none;border:0;color:rgba(255,255,255,0.25);cursor:pointer;font-size:12px;padding:2px 4px">✕</button>
+    </div>
+  `).join("");
+  
+  // Member-specific wallpaper
+  let wpColors = md.wpColors || ["#6c5ce7","#00cec9","#a29bfe"];
+  
+  content.innerHTML = `
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div class="modal-header" style="--c1:${m.c1};--c2:${m.c2}">
+      <div class="mh-avatar" onclick="changeAvatar(${idx})" title="点击换头像">${avatarHtml}</div>
+      <h2>${m.emoji} ${m.name}</h2>
+      <div class="mh-role">${m.role}</div>
+      <div class="mh-desc">${m.desc}</div>
+    </div>
+    <div class="m-panels">
+      <div class="m-panel">
+        <h3>📝 便签</h3>
+        ${notesHtml}
+      </div>
+      <div class="m-panel">
+        <h3>✅ 任务清单 <button class="btn-sm btn-add" onclick="addTask(${idx})" style="margin-left:auto">+ 添加</button></h3>
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <input type="text" id="taskInput" placeholder="新任务..." onkeydown="if(event.key==='Enter')addTask(${idx})">
+        </div>
+        <div class="m-list">${tasksHtml}</div>
+      </div>
+      <div class="m-panel">
+        <h3>🔗 链接 <button class="btn-sm btn-add" onclick="addLink(${idx})" style="margin-left:auto">+ 添加</button></h3>
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <input type="text" id="linkTitle" placeholder="标题" style="width:40%">
+          <input type="url" id="linkUrl" placeholder="URL..." onkeydown="if(event.key==='Enter')addLink(${idx})" style="flex:1">
+        </div>
+        <div class="m-list">${linksHtml}</div>
+      </div>
+      <div class="m-panel">
+        <h3>📁 文件 <label class="btn-sm btn-add" style="margin-left:auto;cursor:pointer">+ 上传<input type=file onchange="uploadFile(${idx},this)" style="display:none"></label></h3>
+        <div class="m-list">${filesHtml||'<div style="font-size:12px;color:rgba(255,255,255,0.2);padding:10px;text-align:center">暂无文件</div>'}</div>
+      </div>
+    </div>
+  `;
+  
+  overlay.classList.add("active");
+  document.body.style.overflow = "hidden";
+}
+
+function closeModal(){
+  document.getElementById("modalOverlay").classList.remove("active");
+  document.body.style.overflow = "";
+  currentMember = null;
+}
+
+// ===== CRUD Operations =====
+function saveNote(idx,val){
+  data[idx].notes = val;
+  saveData();
+}
+
+function addTask(idx){
+  let input = document.getElementById("taskInput");
+  if(!input||!input.value.trim()) return;
+  data[idx].tasks.push({text:input.value.trim(),done:false});
+  input.value = "";
+  saveData();
+  openMember(idx);
+}
+
+function toggleTask(idx,ti){
+  data[idx].tasks[ti].done = !data[idx].tasks[ti].done;
+  saveData();
+  openMember(idx);
+}
+
+function delTask(idx,ti){
+  data[idx].tasks.splice(ti,1);
+  saveData();
+  openMember(idx);
+}
+
+function addLink(idx){
+  let title = document.getElementById("linkTitle");
+  let url = document.getElementById("linkUrl");
+  if(!url||!url.value.trim()) return;
+  data[idx].links.push({title:title?.value?.trim()||url.value.trim(),url:url.value.trim()});
+  url.value = "";
+  if(title) title.value = "";
+  saveData();
+  openMember(idx);
+}
+
+function delLink(idx,li){
+  data[idx].links.splice(li,1);
+  saveData();
+  openMember(idx);
+}
+
+function uploadFile(idx,input){
+  if(!input.files||!input.files[0]) return;
+  let file = input.files[0];
+  if(file.size > 5*1024*1024){alert("文件超过5MB限制");return}
+  let reader = new FileReader();
+  reader.onload = function(e){
+    data[idx].files.push({name:file.name,size:file.size,type:file.type,data:e.target.result});
+    saveData();
+    openMember(idx);
+  };
+  reader.readAsDataURL(file);
+  input.value = "";
+}
+
+function delFile(idx,fi){
+  data[idx].files.splice(fi,1);
+  saveData();
+  openMember(idx);
+}
+
+function downloadFile(idx,fi){
+  let f = data[idx].files[fi];
+  if(!f) return;
+  let a = document.createElement("a");
+  a.href = f.data;
+  a.download = f.name;
+  a.click();
+}
+
+function changeAvatar(idx){
+  let input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.onchange = function(){
+    if(!input.files||!input.files[0]) return;
+    let reader = new FileReader();
+    reader.onload = function(e){
+      data[idx].avatar = e.target.result;
+      saveData();
+      openMember(idx);
+      renderPuzzle();
+    };
+    reader.readAsDataURL(input.files[0]);
+  };
+  input.click();
+}
+
+// ===== Wallpaper System =====
+function setWP(type){
+  let layer = document.getElementById("wp-layer");
+  let video = document.getElementById("wpVideo");
+  let grad = document.getElementById("wpGrad");
+  let img = document.getElementById("wpImg");
+  
+  video.style.display = "none";
+  grad.style.display = "none";
+  img.style.display = "none";
+  
+  // Remove old canvas
+  let oldCanvas = layer.querySelector(".wp-canvas");
+  if(oldCanvas) oldCanvas.remove();
+  
+  switch(type){
+    case "video":
+      video.style.display = "block";
+      video.style.opacity = (document.getElementById("wpOp").value/100);
+      break;
+    case "gradient":
+      grad.style.display = "block";
+      grad.style.opacity = (document.getElementById("wpOp").value/100);
+      break;
+    case "particle":
+      grad.style.display = "block";
+      grad.style.opacity = 0.1;
+      createParticles(layer);
+      break;
+  }
+  localStorage.setItem("wp_type",type);
+}
+
+function uploadWP(input){
+  if(!input.files||!input.files[0]) return;
+  let video = document.getElementById("wpVideo");
+  let grad = document.getElementById("wpGrad");
+  let img = document.getElementById("wpImg");
+  video.style.display = "none";
+  grad.style.display = "none";
+  img.style.display = "block";
+  
+  let reader = new FileReader();
+  reader.onload = function(e){
+    img.style.backgroundImage = `url(${e.target.result})`;
+    img.style.opacity = (document.getElementById("wpOp").value/100);
+    localStorage.setItem("wp_img",e.target.result);
+  };
+  reader.readAsDataURL(input.files[0]);
+  input.value = "";
+}
+
+function customGrad(){
+  let c1 = document.getElementById("wpC1").value;
+  let c2 = document.getElementById("wpC2").value;
+  let c3 = document.getElementById("wpC3").value;
+  let grad = document.getElementById("wpGrad");
+  grad.style.display = "block";
+  document.getElementById("wpVideo").style.display = "none";
+  document.getElementById("wpImg").style.display = "none";
+  grad.style.background = `linear-gradient(135deg,${c1},${c2},${c3})`;
+  grad.style.opacity = (document.getElementById("wpOp").value/100);
+}
+
+function setOpacity(val){
+  let pct = val/100;
+  let video = document.getElementById("wpVideo");
+  let grad = document.getElementById("wpGrad");
+  let img = document.getElementById("wpImg");
+  if(video.style.display !== "none") video.style.opacity = pct;
+  if(grad.style.display !== "none") grad.style.opacity = pct;
+  if(img.style.display !== "none") img.style.opacity = pct;
+}
+
+function createParticles(container){
+  let canvas = document.createElement("canvas");
+  canvas.className = "wp-canvas";
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  container.appendChild(canvas);
+  let ctx = canvas.getContext("2d");
+  let particles = [];
+  for(let i=0;i<80;i++){
+    particles.push({
+      x:Math.random()*canvas.width,
+      y:Math.random()*canvas.height,
+      r:Math.random()*3+1,
+      dx:(Math.random()-0.5)*0.8,
+      dy:(Math.random()-0.5)*0.8,
+      color:["#6c5ce7","#00cec9","#a29bfe","#ff6b81","#f5a623"][Math.floor(Math.random()*5)]
+    });
+  }
+  function animate(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    particles.forEach(p=>{
+      p.x += p.dx;
+      p.y += p.dy;
+      if(p.x<0||p.x>canvas.width) p.dx *= -1;
+      if(p.y<0||p.y>canvas.height) p.dy *= -1;
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = 0.4;
+      ctx.fill();
+    });
+    // connections
+    for(let i=0;i<particles.length;i++){
+      for(let j=i+1;j<particles.length;j++){
+        let dx = particles[i].x - particles[j].x;
+        let dy = particles[i].y - particles[j].y;
+        let dist = Math.sqrt(dx*dx+dy*dy);
+        if(dist < 120){
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x,particles[i].y);
+          ctx.lineTo(particles[j].x,particles[j].y);
+          ctx.strokeStyle = "rgba(108,92,231,0.08)";
+          ctx.lineWidth = 0.5;
+          ctx.stroke();
+        }
+      }
+    }
+    requestAnimationFrame(animate);
+  }
+  animate();
+  window.addEventListener("resize",()=>{
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  });
+}
+
+// Restore wallpaper
+function restoreWP(){
+  let type = localStorage.getItem("wp_type") || "video";
+  let imgData = localStorage.getItem("wp_img");
+  if(imgData){
+    document.getElementById("wpImg").style.backgroundImage = `url(${imgData})`;
+    document.getElementById("wpImg").style.display = "block";
+    document.getElementById("wpVideo").style.display = "none";
+    document.getElementById("wpGrad").style.display = "none";
+  } else {
+    setWP(type);
+  }
+}
+
+// ===== Stars =====
+(function(){
+  let c = document.getElementById("stars");
+  for(let i=0;i<100;i++){
+    let s = document.createElement("span");
+    let sz = Math.random()*2.5+1;
+    s.style.width = sz+"px";
+    s.style.height = sz+"px";
+    s.style.left = Math.random()*98+1+"%";
+    s.style.top = Math.random()*98+1+"%";
+    s.style.setProperty("--d",(2+Math.random()*4)+"s");
+    s.style.setProperty("--o",(0.2+Math.random()*0.4));
+    c.appendChild(s);
+  }
+})();
+
+// ===== Floating Animals =====
+(function(){
+  let c = document.getElementById("floating");
+  let emojis = ["🐶","🦊","🐱","🐼","🦝","☁️","⭐","🌸","🦋","🌙"];
+  for(let i=0;i<18;i++){
+    let s = document.createElement("span");
+    s.textContent = emojis[i%10];
+    s.style.left = Math.random()*94+3+"%";
+    s.style.setProperty("--fd",(16+Math.random()*20)+"s");
+    s.style.animationDelay = Math.random()*30+"s";
+    s.style.fontSize = (14+Math.random()*16)+"px";
+    c.appendChild(s);
+  }
+})();
+
+// ===== Utilities =====
+function escHtml(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+function fmtSize(bytes){
+  if(bytes<1024) return bytes+"B";
+  if(bytes<1048576) return (bytes/1024).toFixed(1)+"KB";
+  return (bytes/1048576).toFixed(1)+"MB";
+}
+
+// ===== Init =====
+renderPuzzle();
+restoreWP();
+</script>
+</body>
+</html>
